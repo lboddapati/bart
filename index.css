@@ -1,0 +1,127 @@
+body {
+	position: relative;
+	height:100%;
+	width: 100%;
+	left: 0;
+	right: 0;
+	margin: 0;
+	font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+	font-weight: 300 !important;
+	font-size: 15px;
+}
+
+header {
+	padding: 30px 0px;
+	background: #03A9F4;
+    color: #ffffff;
+}
+
+header h1, p{
+    margin: 0px !important;
+}
+
+header p{
+    padding-top: 20px;
+}
+
+footer {
+	background: #000000;
+	color: #ffffff;
+	margin: 0px !important;
+	padding:  10px !important;
+}
+
+footer p {
+	font-size: 10px;
+}
+
+#content {
+	margin: 0;
+	padding: 0px;
+	height: 100vh;
+	width: 100%;
+}
+
+section {
+	padding: 50px 10px !important;
+	margin: 0 !important;
+	height: 100%;
+	background: rgb(234, 234, 234);
+}
+
+section form, #schedule {
+	padding: 0px 40px !important;
+}
+
+aside {
+	margin: 0px !important;
+	padding: 0px !important;
+	height: 100%;
+}
+
+#counter {
+	margin: 0;
+	height: 30%;
+	background: #4CAF50;
+	color: #ffffff;
+	font-size: 40px;
+	padding: 50px;
+}
+
+#counter small {
+	font-size: 60%;
+}
+	
+#map {
+	margin: 0;
+	height: 70%;
+}
+
+select.stations {
+	margin: 10px 0;
+	padding: 5px;
+}
+
+li {
+	list-style: none;
+	margin: 10px 0px;
+}
+
+.trip, .leg {
+	margin: 0px;
+}
+
+.leg {
+	margin: 10px 0px 10px 20px;
+}
+
+.train {
+	padding: 2px;
+	background: #7BD0F7;
+}
+
+#schedule {
+	height: 75%;
+	overflow-y: auto;
+	margin: 10px 0px;
+}
+
+#schedule ul {
+	padding: 0px;
+}
+
+#schedule li {
+	padding: 10px;
+	background: #ffffff;
+}
+
+#schedule li:hover {
+    cursor:pointer;
+}
+
+.etd {
+    float: right;
+    padding: 0px 5px;
+    background: #4CAF50;
+    color: #ffffff;
+}

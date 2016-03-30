@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <title>BART Realtime Transit Information</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--[if lt IE 9]>
+      <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+    <script src="jquery.countdown.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="index.css">
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+  </head>
+  <body>
+    <header class="text-center">
+      <h1>BART REALTIME TRANSIT INFORMATION</h1>
+    </header>
+    <div id="content" class="container row">
+      <section class="col-sm-7">
+        <form role="form" action="javascript:getTransitInfo()">
+          <select class="form-control stations" name="origin" required></select>
+          <select class="form-control stations" name="destination"  required></select>
+          <button type="submit" class="btn btn-primary">Go</button>
+        </form>
+        <div id="schedule">
+          <ul>
+          </ul>
+        </div>
+      </section>
+      <aside class="col-sm-5">
+        <div id="counter" class="text-center">
+          <small>Next Train departs in </small><br/><span id="countdown"></span>
+        </div>
+        <div id="map">
+        </div>
+      </aside>
+    </div>
+    <footer class="text-center">
+      <p>&copy; Copyright 2016 bart.boddapati.com <p/>
+      <p>This site utilizes the BART API and Google Maps API to display the information. 
+      The train schedules may be subject to change without prior notice. </p>
+    </footer>
+
+    <script>
+        var BART_API_KEY="MW9S-E7SL-26DU-VV8V";
+        var GOOGLE_MAPS_KEY="YOUR_KEY";
+        var stations = [[]];
+        var origin;
+        var destination;
+        var directionsDisplay;
+        var directionsService;
+        var map;
+
+        /** Fetch Transit info based on selected origin and destination **/
+        function getTransitInfo() {
+          origin = $("select.stations[name='origin']").val();
+          destination = $("select.stations[name='destination']").val();
+
+          // Check to endure origin and destination are different
+          if(origin === destination) {
+            alert("Origin & Destination cannot be same");
+            return;
+          }
+
+          $.ajax({
+            type: "GET",
+            url: "http://api.bart.gov/api/sched.aspx?cmd=depart&orig="+origin+"&dest="+destination+"&date=now&key="+BART_API_KEY+"&b=0&a=4&l=0",
+            dataType: "xml",
+            success: function(result) {
+              var etd = getETD();   // Fetch ETDs
+
+              // Update ETD for next train. This is used to update the countdown timer
+              if(result != null && $(result).find('trip').length !== 0){
+                  var next_trip = $(result).find('trip')[0];
+                  var next_train_departure = $(next_trip).attr('origTimeDate')+" "+$(next_trip).attr('origTimeMin');
+                  // Update Countdown Timer
+                  $('#countdown').countdown(next_train_departure, function(event) {
+                    $(this).html(event.strftime('%H:%M:%S'));
+                  });
+              }
+
+              $("#schedule ul").empty();
+              $(result).find('trip').each(function(index){
+                var dept_time = $(this).attr('origTimeMin');
+                var dept_date = $(this).attr('origTimeDate');
+                var arriv_time = $(this).attr('destTimeMin');
+                var arriv_date = $(this).attr('destTimeDate');
+                var fare = $(this).attr('fare');
+
+                var trip = "<li><p class='trip' data-departure-time='"+dept_date+" "+dept_time+"' data-arrival-time='"+arriv_date+" "+arriv_time+"'>"
+                          +"Depart at:&nbsp;&nbsp;"+dept_date+"&nbsp;&nbsp;"+dept_time;
+
+                if((typeof etd[index] != 'undefined') && etd[index] != null) {
+                   trip += "<span class='etd'>ETD: "+etd[index];
+                   trip += (etd[index]!='Leaving')?" min":"";
+                   trip += "</span>";
+                }
+
+                trip += "<br/>Arrive at:&nbsp;&nbsp;"+arriv_date+"&nbsp;&nbsp;"+arriv_time
+                       +"<br/>Total fare:&nbsp;&nbsp;$ "+fare+"</p>";
+
+                $(this).find('leg').each(function(){
+                  var leg_orig = $(this).attr('origin');
+                  var leg_dest = $(this).attr('destination');
+                  var leg_dept_time = $(this).attr('origTimeMin');
+                  var leg_dept_date = $(this).attr('origTimeDate');
+                  var leg_arriv_time = $(this).attr('destTimeMin');
+                  var leg_arriv_date = $(this).attr('destTimeDate');
+                  var leg_line = $(this).attr('line');
+                  var leg_headstn = $(this).attr('trainHeadStation');
+                  var leg_trainIdx = $(this).attr('trainIdx');
+                  var leg = "<p class='leg'><span class='train'>"+leg_trainIdx+" towards "+stations[leg_headstn]['name']+"</span>"/*+",&nbsp;"+leg_line+"</span>"*/
+                           +"&nbsp;&nbsp;"+leg_dept_time+"&nbsp;"+stations[leg_orig]['name']+"&nbsp;&nbsp > &nbsp;&nbsp"+leg_arriv_time+"&nbsp;"
+                           +stations[leg_dest]['name']+"</p>";
+                  trip += leg;
+                });
+
+                trip += "</li>";
+                $("#schedule ul").append(trip);
+              });
+
+              // Map the corresponding route when a particular trip is selected
+              $('#schedule ul li').each(function(){
+                $(this).on('click', function(){
+                  calcRoute(new Date($(this).find('.trip').data("departure-time")));
+                });
+              });
+
+            }
+          });
+        };
+
+
+        /** Fetch Realtime ETD using BART API **/
+        function getETD() {
+          var etd = [];
+          $.ajax({
+            type: "GET",
+            async: false,
+            url: "http://api.bart.gov/api/etd.aspx?cmd=etd&orig="+origin+"&key="+BART_API_KEY,
+            dataType: "xml",
+            success: function(result) {
+              var estimates = $(result).find('etd').filter(function(){
+                return ($(this).find('abbreviation').text()===destination);
+              }).find('minutes');
+
+              estimates.each(function() {
+                etd.push($(this).text());
+              });
+            }
+          });
+          return etd;
+        };
+
+
+        /** Fetch BART Stations List using BART API **/
+        function getBartStationList() {
+          $.ajax({
+            type: "GET",
+            url: "http://api.bart.gov/api/stn.aspx?cmd=stns&key="+BART_API_KEY,
+            dataType: "xml",
+            success: function(result) {
+              stations = [[]];
+              $("select.stations").empty();
+              $("select.stations[name='origin']").append("<option value='' disabled selected>origin</option>");
+              $("select.stations[name='destination']").append("<option value='' disabled selected>destination</option>");
+              $(result).find('station').each(function() {
+                var stn_name = $(this).find('name').text();
+                var stn_abbr = $(this).find('abbr').text();
+                var stn_lat = $(this).find('gtfs_latitude').text();
+                var stn_lng = $(this).find('gtfs_longitude').text();
+                stations[stn_abbr] = [];
+                stations[stn_abbr]['name']=stn_name;
+                stations[stn_abbr]['latitude']=stn_lat;
+                stations[stn_abbr]['longitude']=stn_lng;
+                $("select.stations").append("<option value='"+stn_abbr+"'>"+stn_name+"</option>");
+              });
+            }
+          });
+        };
+
+
+        /** Initialize the Map **/
+        function initMap() {
+          directionsDisplay = new google.maps.DirectionsRenderer();
+          directionsService = new google.maps.DirectionsService();
+          var sfo = new google.maps.LatLng(37.765008, -122.429706);
+          var mapOptions = {
+            zoom:8,
+            center: sfo
+          };
+          map = new google.maps.Map(document.getElementById("map"), mapOptions);
+          directionsDisplay.setMap(map);
+        }
+
+
+        /** Get directions and map the route using Google Maps and Directions APIs **/
+        function calcRoute(deptTime) {
+          var request = {
+              origin: new google.maps.LatLng(stations[origin]['latitude'],stations[origin]['longitude']),
+              destination: new google.maps.LatLng(stations[destination]['latitude'],stations[destination]['longitude']),
+              travelMode: google.maps.TravelMode.TRANSIT,
+              transitOptions: {
+                departureTime: deptTime,
+                modes: [google.maps.TransitMode.SUBWAY, google.maps.TransitMode.TRAIN]
+              }
+          };
+          directionsService.route(request, function(response, status) {
+            if (status == google.maps.DirectionsStatus.OK) {
+              directionsDisplay.setDirections(response);
+            }
+          });
+        };
+
+      /** Function to check if a string is empty, null or undefined **/
+      function isEmpty(str) {
+        return (!str || str.length === 0);
+      }
+
+
+      $(document).ready(function() {
+        // Fetch stations list
+        getBartStationList();
+
+        // Refresh Transit Info every 30 seconds
+        setInterval(function() {
+          if(!(isEmpty(origin)) && !(isEmpty(destination))) {
+             getTransitInfo();
+          }
+        }, 30000);
+
+        // Set Local Storage to Welcome Back a User
+        if(typeof(Storage) !== "undefined") {
+            if(!localStorage.visit_count) {
+               localStorage.visit_count = 1;
+            } else {
+                $("header").append("<p>Welcome Back user! You have visited the site "+localStorage.visit_count+" times before.</p>");
+                localStorage.visit_count++;
+            }
+        } else {
+            console.log("No Web Storage support..");
+        }
+
+    });
+
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY&callback=initMap" async defer></script>
+  </body>
+</html>
